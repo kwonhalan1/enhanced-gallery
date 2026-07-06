@@ -1,29 +1,35 @@
-import { getContext } from '../../../extensions.js';
+import { getContext, extension_settings, saveSettingsDebounced } from '../../../extensions.js';
 
-let originalImages = []; // 정렬 꼬임 방지용 원본 배열
+let originalImages = []; 
 let currentImages = []; 
 let selectedImages = new Set();
-let favoriteImages = new Set(JSON.parse(localStorage.getItem('advGalleryFavs')) || []);
+
+// 서버 설정에 즐겨찾기 배열이 없으면 생성
+if (!extension_settings.advGalleryFavs) {
+    extension_settings.advGalleryFavs = [];
+}
+// 로컬 스토리지 대신 서버 데이터(extension_settings)를 불러옴
+let favoriteImages = new Set(extension_settings.advGalleryFavs);
+
 let isSelectMode = false;
 let currentPage = 1, itemsPerPage = 8, currentLightboxIndex = 0;
 
 const template = `
 <div id="adv-gallery-popup">
-    <!-- 6. 작고 둥근 X버튼 (우측 상단 분리) -->
     <button id="adv-btn-close" title="닫기"><i class="fa-solid fa-xmark"></i></button>
 
     <div id="adv-gallery-controls">
         <div style="font-weight:bold; color:var(--SmartThemeBodyColor); padding:5px 10px; background:rgba(255,255,255,0.05); border-radius:5px;">
-            🖼️
+            💬 현재 채팅 갤러리
         </div>
         
         <select class="adv-ctrl-item" id="adv-sort-select" title="정렬">
-            <option value="newest">최신순</option>
-            <option value="oldest">오래된순</option>
+            <option value="newest">🕒 최신순</option>
+            <option value="oldest">⏳ 오래된순</option>
         </select>
         
         <select class="adv-ctrl-item" id="adv-grid-select" title="화면 표시 장수">
-            <option value="4">4장 보기</option><option value="8" selected>8장 보기</option><option value="20">20장 보기</option>
+            <option value="4">🔲 4장 보기</option><option value="8" selected>🔲 8장 보기</option><option value="20">🔲 20장 보기</option>
         </select>
         
         <div style="margin-left:auto; display:flex; gap:8px;">
@@ -31,7 +37,6 @@ const template = `
         </div>
     </div>
 
-    <!-- 4. 선택 모드 테마 변경 / 7. ★제외삭제 텍스트 변경 -->
     <div id="adv-selection-actions">
         <button class="adv-ctrl-item" id="adv-btn-sel-all"><i class="fa-solid fa-check-square"></i> 전체선택</button>
         <button class="adv-ctrl-item" id="adv-btn-del-sel"><i class="fa-solid fa-trash"></i> 선택삭제(<span id="adv-sel-count">0</span>)</button>
@@ -49,7 +54,6 @@ const template = `
 </div>
 
 <div id="adv-lightbox">
-    <!-- 2. 라이트박스 겹침 방지 (컨테이너 박스 삭제하고 버튼만 독립 배치) / 3. 프롬프트 버튼 삭제 -->
     <button class="adv-nav-btn" id="adv-nav-left"><i class="fa-solid fa-chevron-left"></i></button>
     <img id="adv-lightbox-img" src="">
     <button class="adv-nav-btn" id="adv-nav-right"><i class="fa-solid fa-chevron-right"></i></button>
@@ -64,7 +68,6 @@ function addWandMenuButtons() {
                 const btn = document.createElement('div');
                 btn.id = 'adv-gallery-menu-btn';
                 btn.className = 'list-group-item flex-container flexGap5';
-                // 4. 마법봉 메뉴 분홍색 텍스트 속성 완전히 제거
                 btn.innerHTML = '<div class="fa-solid fa-images extensionsMenuExtensionButton"></div><span>갤러리</span>';
 
                 btn.addEventListener('click', function () {
@@ -107,7 +110,6 @@ function loadCurrentChatImages() {
         }
     });
 
-    // 5. 정렬 꼬임 방지를 위해 원본(오래된 순) 배열을 따로 저장
     originalImages = Array.from(foundImages);
 
     if (originalImages.length === 0) {
@@ -121,7 +123,6 @@ function loadCurrentChatImages() {
 function applySortAndRender() {
     const sortType = document.getElementById('adv-sort-select').value;
     
-    // 5. 정렬 꼬임 완벽 해결 (항상 원본을 복사해서 정렬)
     currentImages = [...originalImages];
     
     if (sortType === 'newest') {
@@ -150,14 +151,14 @@ function renderGrid() {
 
     pageImages.forEach((src, idx) => {
         const card = document.createElement('div');
-        // CSS 클래스를 부여하여 style.css에서 디자인 제어 (블루톤 테두리)
         card.className = `adv-img-card ${selectedImages.has(src) ? 'selected' : ''}`;
 
         const favBtn = document.createElement('button');
-        // CSS 클래스를 부여하여 style.css에서 크기 등 제어
         favBtn.className = `adv-btn-fav ${favoriteImages.has(src) ? 'active' : ''}`;
         favBtn.innerHTML = favoriteImages.has(src) ? '<i class="fa-solid fa-star"></i>' : '<i class="fa-regular fa-star"></i>';
-         favBtn.style.color = favoriteImages.has(src) ? '#ffd54f' : 'white'; 
+        
+        // 렌더링 시 노란색/흰색 지정
+        favBtn.style.color = favoriteImages.has(src) ? '#ffd54f' : 'white'; 
         
         favBtn.onclick = (e) => {
             e.preventDefault();
@@ -165,23 +166,15 @@ function renderGrid() {
             if (favoriteImages.has(src)) favoriteImages.delete(src); 
             else favoriteImages.add(src);
             
-            localStorage.setItem('advGalleryFavs', JSON.stringify([...favoriteImages]));
+            // 서버 설정(settings.json)에 저장 후 디바운스 적용
+            extension_settings.advGalleryFavs = [...favoriteImages];
+            saveSettingsDebounced();
+
             favBtn.classList.toggle('active');
             favBtn.innerHTML = favoriteImages.has(src) ? '<i class="fa-solid fa-star"></i>' : '<i class="fa-regular fa-star"></i>';
             
-            // ★ 추가 2: 클릭할 때마다 노란색 <-> 흰색 왔다갔다 변경
+            // 클릭 시 즉각적인 색상 변화 반영
             favBtn.style.color = favoriteImages.has(src) ? '#ffd54f' : 'white'; 
-        };
-        // 1. 즐겨찾기 버튼 안 눌림 방지 (이벤트 버블링 차단)
-        favBtn.onclick = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (favoriteImages.has(src)) favoriteImages.delete(src); 
-            else favoriteImages.add(src);
-            
-            localStorage.setItem('advGalleryFavs', JSON.stringify([...favoriteImages]));
-            favBtn.classList.toggle('active');
-            favBtn.innerHTML = favoriteImages.has(src) ? '<i class="fa-solid fa-star"></i>' : '<i class="fa-regular fa-star"></i>';
         };
 
         const img = document.createElement('img');
@@ -226,7 +219,6 @@ function bindEvents() {
     document.getElementById('adv-btn-prev-page').onclick = () => { if(currentPage > 1) { currentPage--; renderGrid(); } };
     document.getElementById('adv-btn-next-page').onclick = () => { if(currentPage < Math.ceil(currentImages.length/itemsPerPage)) { currentPage++; renderGrid(); } };
 
-    // 4. 선택 모드 테마 변경 (핑크색 -> 블루)
     document.getElementById('adv-btn-select').onclick = (e) => {
         isSelectMode = !isSelectMode;
         e.currentTarget.style.background = isSelectMode ? 'rgba(59,130,246,0.6)' : 'rgba(255,255,255,0.1)';
@@ -244,7 +236,6 @@ function bindEvents() {
     
     document.getElementById('adv-btn-del-sel').onclick = () => deleteTargetImages(Array.from(selectedImages));
     
-    // 7. ★제외삭제 로직 변경 (선택 무시하고 즐겨찾기 아닌 건 싹 다 삭제 대상)
     document.getElementById('adv-btn-del-unsel').onclick = () => {
         const toDelete = currentImages.filter(src => !favoriteImages.has(src));
         deleteTargetImages(toDelete);
@@ -285,13 +276,11 @@ async function deleteTargetImages(targetArray) {
 
     for (let src of targetArray) {
         try {
-            // (추가) 물리적 파일 삭제 버그 완벽 픽스: path 대신 url 전송
             await fetch('/api/images/delete', { 
                 method: 'POST', 
                 headers: headers, 
                 body: JSON.stringify({ url: src }) 
             });
-            // 원본 배열과 현재 렌더링 배열에서 동시 삭제
             originalImages = originalImages.filter(img => img !== src);
             currentImages = currentImages.filter(img => img !== src);
         } catch(e) { console.error(e); }
@@ -300,7 +289,6 @@ async function deleteTargetImages(targetArray) {
     selectedImages.clear(); 
     document.getElementById('adv-sel-count').innerText = '0';
     
-    // 페이지네이션 인덱스 보정
     const totalPages = Math.ceil(currentImages.length / itemsPerPage) || 1;
     if (currentPage > totalPages) currentPage = totalPages;
     
