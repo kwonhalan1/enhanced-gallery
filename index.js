@@ -6,24 +6,23 @@ let favoriteImages = new Set(JSON.parse(localStorage.getItem('advGalleryFavs')) 
 let isSelectMode = false;
 let currentPage = 1, itemsPerPage = 8, currentLightboxIndex = 0;
 
+// 캐릭터 선택을 빼고 '현재 채팅' 전용으로 UI 간소화
 const template = `
 <div id="adv-gallery-popup" style="display:none; position:fixed; top:5vh; left:5vw; width:90vw; height:90vh; min-width:320px; min-height:400px; resize:both; overflow:hidden; background:var(--SmartThemeBlurTintColor, #1a1a1a); backdrop-filter:blur(10px); border:1px solid var(--SmartThemeBorderColor, #444); border-radius:12px; z-index:9999; flex-direction:column; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
     
     <div id="adv-gallery-controls" style="display:flex; align-items:center; gap:8px; padding:10px; border-bottom:1px solid var(--SmartThemeBorderColor, #444); background:rgba(0,0,0,0.2); overflow-x:auto; flex-shrink:0; white-space:nowrap;">
         
-        <select class="adv-ctrl-item" id="adv-char-select" title="캐릭터 선택" style="padding:5px; border-radius:5px; background:rgba(255,255,255,0.1); color:inherit; border:1px solid #555;">
-            <option value="">👤 캐릭터 선택</option>
-        </select>
-        <span id="adv-char-size" style="font-size:12px; opacity:0.6; padding-right:5px;"></span>
+        <div style="font-weight:bold; color:var(--SmartThemeBodyColor); padding:5px 10px; background:rgba(255,255,255,0.05); border-radius:5px;">
+            💬 현재 채팅 갤러리
+        </div>
         
-        <select class="adv-ctrl-item" id="adv-sort-select" title="정렬" style="padding:5px; border-radius:5px; background:rgba(255,255,255,0.1); color:inherit; border:1px solid #555;">
-            <option value="newest">최신순</option>
-            <option value="oldest">오래된순</option>
-            <option value="size">용량순</option>
+        <select class="adv-ctrl-item" id="adv-sort-select" title="정렬" style="padding:5px; border-radius:5px; background:rgba(255,255,255,0.1); color:inherit; border:1px solid #555; cursor:pointer;">
+            <option value="newest">🕒 최신순</option>
+            <option value="oldest">⏳ 오래된순</option>
         </select>
         
-        <select class="adv-ctrl-item" id="adv-grid-select" title="화면 표시 장수" style="padding:5px; border-radius:5px; background:rgba(255,255,255,0.1); color:inherit; border:1px solid #555;">
-            <option value="4">4장 보기</option><option value="8" selected>8장 보기</option><option value="20">20장 보기</option>
+        <select class="adv-ctrl-item" id="adv-grid-select" title="화면 표시 장수" style="padding:5px; border-radius:5px; background:rgba(255,255,255,0.1); color:inherit; border:1px solid #555; cursor:pointer;">
+            <option value="4">🔲 4장 보기</option><option value="8" selected>🔲 8장 보기</option><option value="20">🔲 20장 보기</option>
         </select>
         
         <div style="margin-left:auto; display:flex; gap:8px;">
@@ -58,125 +57,90 @@ const template = `
 </div>
 `;
 
-window.advGalleryCache = {};
-
-// 1. 메뉴 버튼 추가 (안전 장치 추가)
+// 1. 메뉴 버튼 추가 (안전하게 UI 렌더링 후 삽입)
 function addWandMenuButtons() {
-    const injectTimer = setInterval(() => {
-        const extMenu = document.getElementById('extensionsMenu');
-        if (extMenu) {
+    const initInterval = setInterval(() => {
+        const menu = document.getElementById('extensionsMenu');
+        if (menu) {
             if (!document.getElementById('adv-gallery-menu-btn')) {
                 const btn = document.createElement('div');
                 btn.id = 'adv-gallery-menu-btn';
                 btn.className = 'list-group-item flex-container flexGap5';
-                btn.innerHTML = '<div class="fa-solid fa-images extensionsMenuExtensionButton" style="color:#ff4081;"></div><span>갤러리</span>';
+                btn.innerHTML = '<div class="fa-solid fa-images extensionsMenuExtensionButton"></div><span>갤러리</span>';
 
                 btn.addEventListener('click', function () {
                     document.getElementById('adv-gallery-popup').style.display = 'flex';
+                    // 갤러리 열 때마다 현재 채팅창 이미지를 로드
+                    loadCurrentChatImages();
                     document.getElementById('extensionsMenuButton')?.click();
-                    populateCharacters(); // 열 때마다 캐릭터 목록 갱신
                 });
-                extMenu.appendChild(btn);
+                menu.appendChild(btn);
             }
-            clearInterval(injectTimer);
+            clearInterval(initInterval);
         }
-    }, 500); // UI가 준비될 때까지 0.5초마다 체크 후 등록
+    }, 500);
 }
 
-// 2. 캐릭터 목록 생성
-function populateCharacters() {
-    const select = document.getElementById('adv-char-select');
-    const currentVal = select.value;
-    select.innerHTML = '<option value="">👤 캐릭터 선택</option>';
-    
-    const context = getContext();
-    if (context.characters) {
-        // 실리태번 기본 정렬(최근에 대화한 순서) 유지
-        context.characters.forEach(c => {
-            select.innerHTML += `<option value="${c.avatar}">${c.name}</option>`;
-        });
-    }
-
-    if (currentVal) {
-        select.value = currentVal;
-    }
-}
-
-// 3. ★ 핵심: 렉 없이 빠르고 정확하게 서버 폴더에서 이미지 긁어오기 (오류 완벽 수정)
-async function loadAndSortImages() {
-    const select = document.getElementById('adv-char-select');
-    const avatarName = select.value;
+// 2. ★ 원본 방식: 서버 폴더 대신 "현재 열려있는 채팅 기록"에서만 이미지를 즉시 추출 (렉 0%)
+function loadCurrentChatImages() {
     const container = document.getElementById('adv-gallery-container');
-    document.getElementById('adv-char-size').innerText = '';
-    
-    if (!avatarName) { 
-        currentImages = []; 
-        applySortAndRender(); 
-        return; 
-    }
-
-    // [수정된 부분] HTML에서 가져오지 않고, ST 기본 메모리에서 100% 안전하게 캐릭터 이름을 추출합니다.
     const context = getContext();
-    const charData = context.characters.find(c => c.avatar === avatarName);
-    const charName = charData ? charData.name : "";
-
-    container.innerHTML = '<p style="text-align:center; padding-top:40px; color:#ff4081; grid-column:1/-1;">서버에서 이미지를 불러오는 중입니다...</p>';
     
-    try {
-        // 원본 갤러리 익스텐션이 사용하는 정규 API 규격 (POST /api/images/get)
-        const res = await fetch('/api/images/get', {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': context.csrf_token
-            },
-            body: JSON.stringify({ 
-                avatar: avatarName, 
-                ch_name: charName // 이제 절대 null이 되지 않고 정상적으로 서버에 전달됩니다.
-            })
-        });
-        
-        if (res.ok) {
-            const data = await res.json();
-            currentImages = Array.isArray(data) ? data : (data.images || []);
-        } else {
-            throw new Error(`API 오류: ${res.status}`);
-        }
-    } catch (e) {
-        console.error("갤러리 로드 실패:", e);
+    // 현재 채팅 데이터가 없으면 종료
+    if (!context.chat || context.chat.length === 0) {
         currentImages = [];
+        container.innerHTML = '<p style="text-align:center; padding-top:40px; color:#aaa; grid-column:1/-1;">현재 채팅에 이미지가 없습니다.</p>';
+        return;
     }
+
+    let foundImages = new Set();
+    const imgRegex = /<img[^>]+src=["']([^"']+)["']/gi;
+
+    // 현재 채팅 배열을 훑으며 이미지 태그와 생성된 이미지(extra) 추출
+    context.chat.forEach(msg => {
+        // SD 등으로 생성되어 첨부된 이미지
+        if (msg.extra && msg.extra.image) {
+            foundImages.add(msg.extra.image);
+        }
+        // 본문(mes) 안에 포함된 이미지 태그
+        if (msg.mes) {
+            let match;
+            while ((match = imgRegex.exec(msg.mes)) !== null) {
+                // base64로 인코딩된 이모티콘 등은 제외하고 실제 파일 경로만 수집
+                if (!match[1].startsWith('data:')) {
+                    foundImages.add(match[1]);
+                }
+            }
+        }
+    });
+
+    currentImages = Array.from(foundImages);
 
     if (currentImages.length === 0) {
-        container.innerHTML = '<p style="text-align:center; padding-top:40px; color:#aaa; grid-column:1/-1;">이 캐릭터의 폴더에 저장된 갤러리 이미지가 없습니다.</p>';
+        container.innerHTML = '<p style="text-align:center; padding-top:40px; color:#aaa; grid-column:1/-1;">현재 채팅에 이미지가 없습니다.</p>';
         return;
     }
 
     applySortAndRender();
 }
 
-// 4. 정렬 로직 적용
+// 3. 정렬 및 화면 그리기
 function applySortAndRender() {
     const sortType = document.getElementById('adv-sort-select').value;
     
-    // 서버가 넘겨주는 데이터는 폴더 안의 파일 순서(오래된순)입니다.
+    // 채팅 기록은 위에서 아래로 읽히므로 기본이 '오래된 순'입니다.
     if (sortType === 'newest') {
         currentImages.reverse();
-    } else if (sortType === 'oldest') {
-        currentImages.sort();
-    } else if (sortType === 'size') {
-        currentImages.sort((a, b) => b.length - a.length);
     }
+    // size 정렬은 현재 채팅에선 굳이 필요 없으므로 제거했습니다.
 
     currentPage = 1;
     selectedImages.clear();
     document.getElementById('adv-sel-count').innerText = '0';
     
     renderGrid();
-    calculateTotalSize(currentImages);
 }
 
-// 5. 그리드 렌더링
 function renderGrid() {
     const container = document.getElementById('adv-gallery-container');
     if(!currentImages || currentImages.length === 0) return;
@@ -237,29 +201,7 @@ function renderGrid() {
     });
 }
 
-// 용량 계산
-async function calculateTotalSize(images) {
-    const sizeSpan = document.getElementById('adv-char-size');
-    if (images.length === 0) { sizeSpan.innerText = '(0MB)'; return; }
-
-    sizeSpan.innerText = '(계산 중...)';
-    let totalSize = 0;
-    try {
-        for (let i = 0; i < images.length; i += 20) {
-            const chunk = images.slice(i, i + 20);
-            await Promise.all(chunk.map(async (src) => {
-                try {
-                    const res = await fetch(src, { method: 'HEAD' });
-                    const size = res.headers.get('content-length');
-                    if (size) totalSize += parseInt(size, 10);
-                } catch(e) {}
-            }));
-        }
-        sizeSpan.innerText = `(${(totalSize / (1024 * 1024)).toFixed(2)}MB)`;
-    } catch(e) { sizeSpan.innerText = '(계산 실패)'; }
-}
-
-// 6. 이벤트 바인딩
+// 4. 이벤트 바인딩
 function bindEvents() {
     document.getElementById('adv-btn-close').onclick = () => {
         document.getElementById('adv-gallery-popup').style.display = 'none';
@@ -268,8 +210,10 @@ function bindEvents() {
         document.getElementById('adv-selection-actions').style.display = 'none';
     };
 
-    document.getElementById('adv-char-select').onchange = () => loadAndSortImages();
-    document.getElementById('adv-sort-select').onchange = () => applySortAndRender();
+    document.getElementById('adv-sort-select').onchange = () => {
+        if(currentImages.length > 0) applySortAndRender();
+    };
+    
     document.getElementById('adv-grid-select').onchange = (e) => { itemsPerPage = parseInt(e.target.value); renderGrid(); };
 
     document.getElementById('adv-btn-prev-page').onclick = () => { if(currentPage > 1) { currentPage--; renderGrid(); } };
@@ -279,22 +223,19 @@ function bindEvents() {
         isSelectMode = !isSelectMode;
         e.currentTarget.style.background = isSelectMode ? 'rgba(255,64,129,0.5)' : 'rgba(255,255,255,0.1)';
         document.getElementById('adv-selection-actions').style.display = isSelectMode ? 'flex' : 'none';
-        selectedImages.clear(); 
-        document.getElementById('adv-sel-count').innerText = '0'; 
-        renderGrid();
+        selectedImages.clear(); document.getElementById('adv-sel-count').innerText = '0'; renderGrid();
     };
 
     document.getElementById('adv-btn-sel-all').onclick = () => {
         currentImages.forEach(src => selectedImages.add(src));
-        document.getElementById('adv-sel-count').innerText = selectedImages.size; 
-        renderGrid();
+        document.getElementById('adv-sel-count').innerText = selectedImages.size; renderGrid();
     };
     
     document.getElementById('adv-btn-del-sel').onclick = () => deleteTargetImages(Array.from(selectedImages));
     document.getElementById('adv-btn-del-unsel').onclick = () => deleteTargetImages(currentImages.filter(src => !selectedImages.has(src)));
     
     document.getElementById('adv-btn-save-sel').onclick = () => {
-        if(selectedImages.size === 0) { alert('저장할 이미지를 선택해주세요.'); return; }
+        if(selectedImages.size === 0) return alert('저장할 이미지가 없습니다.');
         selectedImages.forEach(src => {
             const a = document.createElement('a'); 
             a.href = src; 
@@ -314,21 +255,21 @@ function bindEvents() {
         e.stopPropagation();
         const imgSrc = document.getElementById('adv-lightbox-img').src;
         try {
-            const context = getContext();
+            const headers = typeof window.getRequestHeaders === 'function' ? window.getRequestHeaders() : { 'Content-Type': 'application/json', 'X-CSRF-Token': getContext().csrf_token };
             const res = await fetch('/api/images/extract', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': context.csrf_token },
+                headers: headers,
                 body: JSON.stringify({ avatar: imgSrc.split('/').pop() })
             });
-            let promptText = "";
+            
             if (res.ok) {
                 const metadata = await res.json();
-                promptText = metadata.prompt || metadata.description || "메타데이터가 존재하지 않습니다.";
+                const promptText = metadata.prompt || metadata.description || "프롬프트 데이터가 없습니다.";
+                await navigator.clipboard.writeText(promptText);
+                alert("클립보드에 복사되었습니다.");
             } else {
-                promptText = "메타데이터를 가져오지 못했습니다.";
+                alert("메타데이터를 가져오지 못했습니다.");
             }
-            await navigator.clipboard.writeText(promptText);
-            alert("프롬프트가 클립보드에 복사되었습니다.");
         } catch (err) {
             alert("복사 오류가 발생했습니다.");
         }
@@ -346,23 +287,27 @@ async function deleteTargetImages(targetArray) {
     const toDelete = targetArray.filter(src => !favoriteImages.has(src));
     if (toDelete.length === 0) return alert("삭제할 이미지가 없거나 모두 ⭐ 즐겨찾기로 보호되어 있습니다.");
 
-    if (!confirm(`즐겨찾기된 이미지를 제외한 ${toDelete.length}장을 서버에서 완전히 삭제합니다. 진행할까요?`)) return;
+    if (!confirm(`즐겨찾기된 이미지를 제외한 ${toDelete.length}장을 서버에서 영구 삭제합니다. 진행할까요?`)) return;
+
+    const headers = typeof window.getRequestHeaders === 'function' 
+        ? window.getRequestHeaders() 
+        : { 'Content-Type': 'application/json', 'X-CSRF-Token': getContext().csrf_token };
 
     for (let src of toDelete) {
-        await fetch('/api/images/delete', { 
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': getContext().csrf_token}, 
-            body: JSON.stringify({path: src}) 
-        });
-        
-        currentImages = currentImages.filter(img => img !== src);
+        try {
+            await fetch('/api/images/delete', { 
+                method: 'POST', 
+                headers: headers, 
+                body: JSON.stringify({ path: src }) 
+            });
+            currentImages = currentImages.filter(img => img !== src);
+        } catch(e) { console.error(e); }
     }
     
     selectedImages.clear(); 
     document.getElementById('adv-sel-count').innerText = '0';
     renderGrid();
-    calculateTotalSize(currentImages);
-    alert('삭제 완료!');
+    alert('서버에서 삭제 완료되었습니다.\n(※ 이미지는 서버에서 지워졌으나, 대화 내역의 빈 액박을 없애려면 채팅창을 새로고침 하거나 해당 메시지를 수정해야 합니다.)');
 }
 
 jQuery(function () {
