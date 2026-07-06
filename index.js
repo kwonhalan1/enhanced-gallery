@@ -3,14 +3,7 @@ import { getContext, extension_settings, saveSettingsDebounced } from '../../../
 let originalImages = []; 
 let currentImages = []; 
 let selectedImages = new Set();
-
-// 서버 설정에 즐겨찾기 배열이 없으면 생성
-if (!extension_settings.advGalleryFavs) {
-    extension_settings.advGalleryFavs = [];
-}
-// 로컬 스토리지 대신 서버 데이터(extension_settings)를 불러옴
-let favoriteImages = new Set(extension_settings.advGalleryFavs);
-
+let favoriteImages = new Set(); // 에러 유발하던 서버 읽기 코드를 밑으로 내리고 비워둠
 let isSelectMode = false;
 let currentPage = 1, itemsPerPage = 8, currentLightboxIndex = 0;
 
@@ -166,7 +159,7 @@ function renderGrid() {
             if (favoriteImages.has(src)) favoriteImages.delete(src); 
             else favoriteImages.add(src);
             
-            // 서버 설정(settings.json)에 저장 후 디바운스 적용
+            // 서버 설정(settings.json)에 저장 후 딜레이 저장 적용
             extension_settings.advGalleryFavs = [...favoriteImages];
             saveSettingsDebounced();
 
@@ -276,6 +269,7 @@ async function deleteTargetImages(targetArray) {
 
     for (let src of targetArray) {
         try {
+            // path 대신 url 사용 (실제 서버에서 파일이 삭제되게 고침)
             await fetch('/api/images/delete', { 
                 method: 'POST', 
                 headers: headers, 
@@ -296,7 +290,15 @@ async function deleteTargetImages(targetArray) {
     alert('삭제 완료!\n(채팅창의 깨진 엑박을 지우려면 메시지를 새로고침/수정해야 합니다.)');
 }
 
+// ----------------------------------------------------
+// ★ 여기로 옮겼습니다: 실리태번 로딩이 끝난 안전한 시점에 서버 데이터 불러오기
+// ----------------------------------------------------
 jQuery(function () {
+    if (!extension_settings.advGalleryFavs) {
+        extension_settings.advGalleryFavs = [];
+    }
+    favoriteImages = new Set(extension_settings.advGalleryFavs);
+
     document.body.insertAdjacentHTML('beforeend', template);
     addWandMenuButtons();
     bindEvents();
