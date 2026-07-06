@@ -1,32 +1,38 @@
-/* 메인 팝업 */
+/* 기본 테마 (다크 모드) */
 #adv-gallery-popup {
     display: none; position: fixed; top: 5%; left: 5%; width: 90%; height: 90%;
-    background: var(--bg-color, #1a1a1a); border: 2px solid var(--SmartThemeBorderColor, #555);
-    border-radius: 10px; z-index: 2500; display: flex; flex-direction: column;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.8); color: var(--SmartThemeBodyColor, #eee);
+    background: #1a1a1a; border: 2px solid #555;
+    border-radius: 10px; z-index: 2500; flex-direction: column;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8); color: #eee;
+    transition: background 0.3s, color 0.3s;
 }
 
-/* 상단 컨트롤 패널 (PC/모바일 공통: 가로 스크롤 가능하게) */
+/* 컨트롤 패널 공통 */
 #adv-gallery-controls, #adv-selection-actions {
     padding: 10px; display: flex; flex-wrap: nowrap; gap: 10px; align-items: center;
-    overflow-x: auto; white-space: nowrap; border-bottom: 1px solid var(--SmartThemeBorderColor, #555);
+    overflow-x: auto; white-space: nowrap; border-bottom: 1px solid #555;
 }
 
-/* 컨트롤 요소 디자인 */
 .adv-ctrl-item {
-    background: var(--SmartThemeBlurTintColor, #333); color: inherit;
-    border: 1px solid #555; padding: 8px 12px; border-radius: 5px; cursor: pointer;
-    display: flex; align-items: center; gap: 5px; font-size: 14px;
+    background: #333; color: #eee; border: 1px solid #555; 
+    padding: 8px 12px; border-radius: 5px; cursor: pointer;
+    display: flex; align-items: center; gap: 5px; font-size: 14px; transition: 0.2s;
 }
-.adv-ctrl-item:hover { background: var(--SmartThemeQuoteColor, #555); }
+.adv-ctrl-item:hover { background: #555; }
 
-/* 그리드 */
+/* 🌟 라이트 모드 (다크모드 반전) */
+#adv-gallery-popup.adv-light-mode { background: #f4f4f9; color: #222; border-color: #ccc; }
+#adv-gallery-popup.adv-light-mode #adv-gallery-controls { border-bottom-color: #ccc; }
+#adv-gallery-popup.adv-light-mode .adv-ctrl-item { background: #e0e0e0; color: #222; border-color: #bbb; }
+#adv-gallery-popup.adv-light-mode .adv-ctrl-item:hover { background: #d0d0d0; }
+#adv-gallery-popup.adv-light-mode #adv-pagination { border-top-color: #ccc; }
+
+/* 그리드 & 이미지 카드 */
 #adv-gallery-container {
     flex-grow: 1; overflow-y: auto; padding: 15px; display: grid; gap: 15px;
     grid-template-columns: repeat(var(--columns, 4), 1fr);
 }
 
-/* 이미지 카드 & 즐겨찾기 별모양 */
 .adv-img-card {
     position: relative; border-radius: 8px; overflow: hidden; background: #000;
     transition: transform 0.2s; cursor: pointer; aspect-ratio: 1/1;
@@ -34,10 +40,10 @@
 .adv-img-card:hover { transform: scale(1.02); }
 .adv-img-card img { width: 100%; height: 100%; object-fit: cover; }
 
+/* 즐겨찾기 & 선택 상태 */
 .adv-btn-fav {
-    position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.5);
-    border: none; border-radius: 50%; width: 30px; height: 30px;
-    font-size: 16px; cursor: pointer; z-index: 10; opacity: 0.7;
+    position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.5); border: none; 
+    border-radius: 50%; width: 30px; height: 30px; font-size: 16px; cursor: pointer; z-index: 10; opacity: 0.7;
 }
 .adv-btn-fav.active { color: gold; text-shadow: 0 0 5px gold; opacity: 1; }
 
@@ -48,20 +54,18 @@
     display: flex; align-items: center; justify-content: center; font-weight: bold;
 }
 
-/* 크게 보기 (라이트박스) */
+/* 라이트박스 (크게 보기) */
 #adv-lightbox {
     display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
     background: rgba(0,0,0,0.95); z-index: 3000; flex-direction: column; justify-content: center; align-items: center;
 }
 #adv-lightbox-img { max-width: 95vw; max-height: 80vh; object-fit: contain; }
 
-/* 하단 반투명 네비게이션 버튼 (요구사항 반영) */
-#adv-lightbox-nav {
-    position: absolute; bottom: 20px; display: flex; gap: 20px;
-}
+/* 하단 네비게이션 */
+#adv-lightbox-nav { position: absolute; bottom: 20px; display: flex; gap: 20px; }
 .adv-nav-btn {
-    background: rgba(255,255,255,0.2); border: none; color: white;
-    font-size: 20px; padding: 10px 25px; border-radius: 10px; cursor: pointer; backdrop-filter: blur(5px);
+    background: rgba(255,255,255,0.2); border: none; color: white; font-size: 16px; 
+    padding: 10px 20px; border-radius: 8px; cursor: pointer; backdrop-filter: blur(5px);
 }
 .adv-nav-btn:hover { background: rgba(255,255,255,0.4); }
 
