@@ -83,7 +83,7 @@ function addMenuButton() {
         btn.id = 'adv-gallery-menu-btn';
         btn.className = 'list-group-item flex-container flexGap5 cursor-pointer';
         // 참조 코드의 버튼 스타일 채용 (fa-solid 아이콘 + 텍스트)
-        btn.innerHTML = '<div class="fa-solid fa-images extensionsMenuExtensionButton" style="color:#ff4081;"></div><span style="font-weight:bold;">갤러리</span>';
+        btn.innerHTML = '<div class="fa-solid fa-images extensionsMenuExtensionButton" style="color:#ff4081;"></div>'갤러리';
         btn.addEventListener('click', function () {
             openGallery();
             $('#extensionsMenu').hide(); // 클릭 후 확장 메뉴 닫기
