@@ -1,7 +1,8 @@
 {
-    "name": "Advanced Character Gallery",
-    "description": "캐릭터별 갤러리 조회, 다중 선택(삭제/저장), 페이징, 메타데이터 보기 기능이 통합된 고급 갤러리입니다.",
-    "version": "1.0.0",
+    "name": "advanced-character-gallery",
+    "display_name": "Advanced Gallery",
+    "description": "즐겨찾기, 정렬, 프롬프트 복사가 추가된 갤러리입니다.",
+    "version": "2.0.0",
     "author": "YourName",
     "main": "index.js"
 }
