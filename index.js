@@ -26,7 +26,7 @@ const template = `
         <button class="adv-ctrl-item" id="adv-btn-select" title="다중 선택 모드">✅</button>
         <button class="adv-ctrl-item" id="adv-btn-close" title="닫기" style="color:#ff4d4d;">❌</button>
     </div>
-    
+
     <div id="adv-selection-actions" style="display:none; background: rgba(255,64,129,0.1); border-bottom: 1px solid #ff4081;">
         <button class="adv-ctrl-item" id="adv-btn-sel-all">☑️ 전체선택</button>
         <button class="adv-ctrl-item" id="adv-btn-del-sel" style="color:#ff4d4d;">🗑️ 삭제(<span id="adv-sel-count">0</span>)</button>
@@ -35,7 +35,7 @@ const template = `
     </div>
 
     <div id="adv-gallery-container"></div>
-    
+
     <div id="adv-pagination" style="display:flex; justify-content:center; gap:10px; padding:10px; border-top:1px solid #444;">
         <button class="adv-ctrl-item" id="adv-btn-prev-page">◀ 이전</button>
         <span id="adv-page-info" style="align-self:center;">1/1</span>
@@ -63,9 +63,10 @@ function addWandMenuButtons() {
         btn.id = 'adv-gallery-menu-btn';
         btn.className = 'list-group-item flex-container flexGap5';
         btn.innerHTML = '<div class="fa-solid fa-images extensionsMenuExtensionButton" style="color:#ff4081;"></div><span>갤러리</span>';
+
         btn.addEventListener('click', function () {
             document.getElementById('adv-gallery-popup').style.display = 'flex';
-            
+
             // 캐릭터 목록 불러오기
             const context = getContext();
             const select = document.getElementById('adv-char-select');
@@ -75,8 +76,11 @@ function addWandMenuButtons() {
                     select.innerHTML += `<option value="${c.avatar}">${c.name}</option>`;
                 });
             }
-            $('#extensionsMenu').hide(); // 메뉴 닫기
+
+            // 강제로 display:none 하지 말고, 지팡이 아이콘을 다시 눌러서 정상적으로 닫기
+            document.getElementById('extensionsMenuButton')?.click();
         });
+
         menu.appendChild(btn);
     }
 }
@@ -85,10 +89,10 @@ function addWandMenuButtons() {
 async function calculateTotalSize(images) {
     const sizeSpan = document.getElementById('adv-char-size');
     if (images.length === 0) { sizeSpan.innerText = '(0MB)'; return; }
-    
+
     sizeSpan.innerText = '(용량 계산 중...)';
     let totalSize = 0;
-    const chunkSize = 20; 
+    const chunkSize = 20;
     try {
         for (let i = 0; i < images.length; i += chunkSize) {
             const chunk = images.slice(i, i + chunkSize);
@@ -108,15 +112,15 @@ async function calculateTotalSize(images) {
 }
 
 async function loadAndSortImages(charAvatar) {
-    document.getElementById('adv-char-size').innerText = ''; 
+    document.getElementById('adv-char-size').innerText = '';
     if (!charAvatar) { currentImages = []; renderGrid(); return; }
-    
+
     try {
-        const res = await fetch('/api/images/get'); 
+        const res = await fetch('/api/images/get');
         let data = await res.json();
         let allFiles = Array.isArray(data) ? data : (data.images || []);
         currentImages = allFiles.filter(img => img.includes(charAvatar.split('.')[0]));
-        
+
         const sortType = document.getElementById('adv-sort-select').value;
         if (sortType === 'newest') currentImages.sort().reverse();
         else if (sortType === 'oldest') currentImages.sort();
@@ -135,14 +139,14 @@ function renderGrid() {
 
     const totalPages = Math.ceil(currentImages.length / itemsPerPage) || 1;
     document.getElementById('adv-page-info').textContent = `${currentPage}/${totalPages}`;
-    
+
     const startIdx = (currentPage - 1) * itemsPerPage;
     const pageImages = currentImages.slice(startIdx, startIdx + itemsPerPage);
 
     pageImages.forEach((src, idx) => {
         const card = document.createElement('div');
         card.className = `adv-img-card ${selectedImages.has(src) ? 'selected' : ''}`;
-        
+
         const favBtn = document.createElement('button');
         favBtn.className = `adv-btn-fav ${favoriteImages.has(src) ? 'active' : ''}`;
         favBtn.innerHTML = favoriteImages.has(src) ? '⭐' : '☆';
@@ -220,7 +224,7 @@ function bindEvents() {
             const res = await fetch('/api/images/extract', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ avatar: imgSrc.split('/').pop() }) 
+                body: JSON.stringify({ avatar: imgSrc.split('/').pop() })
             });
             let promptText = "";
             if (res.ok) {
@@ -248,7 +252,7 @@ function navLightbox(dir) {
 async function deleteTargetImages(targetArray) {
     const toDelete = targetArray.filter(src => !favoriteImages.has(src));
     if (toDelete.length === 0) return alert("삭제할 이미지가 없거나 모두 즐겨찾기로 보호되어 있습니다.");
-    
+
     if (!confirm(`즐겨찾기된 이미지를 제외한 ${toDelete.length}장을 영구 삭제합니다. 진행할까요?`)) return;
 
     for (let src of toDelete) {
@@ -256,12 +260,12 @@ async function deleteTargetImages(targetArray) {
         currentImages = currentImages.filter(img => img !== src);
     }
     selectedImages.clear(); document.getElementById('adv-sel-count').innerText = '0';
-    renderGrid(); 
+    renderGrid();
     calculateTotalSize(currentImages);
     alert('삭제 완료!');
 }
 
-// ★ 초기화 로직
+// 초기화 로직
 jQuery(async function () {
     document.body.insertAdjacentHTML('beforeend', template);
     addWandMenuButtons();
