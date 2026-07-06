@@ -1,8 +1,8 @@
 {
-    "name": "advanced-character-gallery",
-    "display_name": "Advanced Gallery",
-    "description": "즐겨찾기, 정렬, 프롬프트 복사가 추가된 갤러리입니다.",
-    "version": "2.1.0",
+    "name": "enhanced-gallery",
+    "display_name": "Enhanced Gallery",
+    "description": "이미지 모아보기, 폴더 용량 확인, 다크/라이트 모드, 프롬프트 클립보드 복사를 지원합니다.",
+    "version": "1.0.0",
     "author": "YourName",
     "main": "index.js"
 }
