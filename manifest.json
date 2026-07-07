@@ -1,10 +1,11 @@
 {
     "name": "enhanced-gallery",
     "display_name": "Enhanced Gallery",
-    "description": "이미지 모아보기, 폴더 용량 확인, 다크/라이트 모드, 프롬프트 클립보드 복사를 지원합니다.",
+    "description": "기본 갤러리 확장 개선.",
     "version": "1.0.0",
     "author": "YourName",
     "js": "index.js",
     "css": "style.css",
+    "homePage": "https://github.com/fromkkang/enhanced-gallery",
     "auto_update": true
 }
