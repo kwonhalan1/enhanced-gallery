@@ -33,13 +33,14 @@ const template = `
         </div>
 
         <select class="adv-ctrl-item" id="adv-sort-select" title="정렬">
-            <option value="newest">🕒 최신순</option>
-            <option value="oldest">⏳ 오래된순</option>
+            <option value="newest">최신순</option>
+            <option value="oldest">오래된순</option>
         </select>
 
         <select class="adv-ctrl-item" id="adv-grid-select" title="화면 표시 장수">
-            <option value="4">🔲 4장 보기</option><option value="8" selected>🔲 8장 보기</option><option value="20">🔲 20장 보기</option>
+            <option value="4">4장 보기</option><option value="8" selected>8장 보기</option><option value="20">20장 보기</option><option value="custom">✏️ 직접입력</option>
         </select>
+        <input type="number" id="adv-grid-custom-input" min="1" max="200" placeholder="장수" style="display:none;">
 
         <div style="margin-left:auto; display:flex; gap:8px;">
             <button class="adv-ctrl-item adv-icon-btn" id="adv-btn-select" title="다중 선택 모드"><i class="fa-solid fa-check-double"></i></button>
@@ -133,33 +134,31 @@ async function fetchFolderList() {
             headers: getRequestHeaders({ omitContentType: true }),
         });
         if (!res.ok) return [];
-        const rawFolders = await res.json();
-
-        const withCounts = await Promise.all(rawFolders.map(async (folder) => {
-            try {
-                const listRes = await fetch('/api/images/list', {
-                    method: 'POST',
-                    headers: getRequestHeaders(),
-                    body: JSON.stringify({
-                        folder: folder,
-                        sortField: 'date',
-                        sortOrder: 'desc',
-                        type: MEDIA_REQUEST_TYPE.IMAGE,
-                    }),
-                });
-                if (!listRes.ok) return null;
-                const files = await listRes.json();
-                return files.length > 0 ? folder : null;
-            } catch (e) {
-                return null;
-            }
-        }));
-
-        allFoldersCache = withCounts.filter(Boolean);
+        allFoldersCache = await res.json();
         return allFoldersCache;
     } catch (e) {
         console.error('폴더 목록 조회 실패:', e);
         return [];
+    }
+}
+
+async function hideIfEmptyFolder(folder, itemEl) {
+    try {
+        const res = await fetch('/api/images/list', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify({
+                folder: folder,
+                sortField: 'date',
+                sortOrder: 'desc',
+                type: MEDIA_REQUEST_TYPE.IMAGE,
+            }),
+        });
+        if (!res.ok) return; // 확인 실패 시엔 그냥 보이는 채로 둠
+        const files = await res.json();
+        if (files.length === 0) itemEl.remove();
+    } catch (e) {
+        // 확인 실패 시엔 그냥 보이는 채로 둠
     }
 }
 
@@ -169,7 +168,7 @@ function renderFolderList(filtered) {
 
     const homeItem = document.createElement('div');
     homeItem.className = 'adv-folder-item';
-    homeItem.innerHTML = '🏠 현재 캐릭터로';
+    homeItem.innerHTML = '현재 채팅 캐릭터로';
     homeItem.onclick = () => {
         currentFolder = null;
         document.getElementById('adv-folder-picker').style.display = 'none';
@@ -195,6 +194,7 @@ function renderFolderList(filtered) {
             loadCharacterFolderImages();
         };
         listEl.appendChild(item);
+        hideIfEmptyFolder(folder, item);
     });
 }
 
@@ -382,7 +382,29 @@ function bindEvents() {
         loadCharacterFolderImages();
     };
 
-    document.getElementById('adv-grid-select').onchange = (e) => { itemsPerPage = parseInt(e.target.value); renderGrid(); };
+    document.getElementById('adv-grid-select').onchange = (e) => {
+        const customInput = document.getElementById('adv-grid-custom-input');
+        if (e.target.value === 'custom') {
+            customInput.style.display = 'inline-block';
+            customInput.value = itemsPerPage;
+            customInput.focus();
+            customInput.select();
+        } else {
+            customInput.style.display = 'none';
+            itemsPerPage = parseInt(e.target.value);
+            currentPage = 1;
+            renderGrid();
+        }
+    };
+
+    document.getElementById('adv-grid-custom-input').addEventListener('change', (e) => {
+        let value = parseInt(e.target.value, 10);
+        if (!value || value < 1) value = 1;
+        if (value > 200) value = 200;
+        itemsPerPage = value;
+        currentPage = 1;
+        renderGrid();
+    });
 
     document.getElementById('adv-btn-prev-page').onclick = () => { if (currentPage > 1) { currentPage--; renderGrid(); } };
     document.getElementById('adv-btn-next-page').onclick = () => { if (currentPage < Math.ceil(currentImages.length / itemsPerPage)) { currentPage++; renderGrid(); } };
