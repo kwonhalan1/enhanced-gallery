@@ -38,7 +38,7 @@ const template = `
         </select>
 
         <select class="adv-ctrl-item" id="adv-grid-select" title="화면 표시 장수">
-            <option value="4">4장 보기</option><option value="8" selected>8장 보기</option><option value="20">20장 보기</option><option value="custom">✏️ 직접입력</option>
+            <option value="4">4장</option><option value="8" selected>8장</option><option value="20">20장</option><option value="custom">직접입력</option>
         </select>
         <input type="number" id="adv-grid-custom-input" min="1" max="200" placeholder="장수" style="display:none;">
 
@@ -206,7 +206,11 @@ async function toggleFolderPicker() {
         return;
     }
 
+    const btnRect = document.getElementById('adv-btn-folder-picker').getBoundingClientRect();
+    picker.style.top = `${btnRect.bottom + 6}px`;
+    picker.style.left = `${btnRect.left}px`;
     picker.style.display = 'block';
+
     const listEl = document.getElementById('adv-folder-list');
     listEl.innerHTML = '<div style="padding:8px; opacity:0.6; font-size:12px;">불러오는 중...</div>';
 
@@ -466,10 +470,12 @@ function bindEvents() {
     document.addEventListener('mousedown', (e) => {
         const popup = document.getElementById('adv-gallery-popup');
         const menuBtn = document.getElementById('adv-gallery-menu-btn');
+        const picker = document.getElementById('adv-folder-picker');
         if (
             popup.style.display === 'flex' &&
             !popup.contains(e.target) &&
-            !(menuBtn && menuBtn.contains(e.target))
+            !(menuBtn && menuBtn.contains(e.target)) &&
+            !(picker && picker.contains(e.target))
         ) {
             document.getElementById('adv-btn-close').click();
         }
@@ -577,6 +583,7 @@ jQuery(function () {
     favoriteImages = new Set(loadedFavs);
 
     document.body.insertAdjacentHTML('beforeend', template);
+    document.body.appendChild(document.getElementById('adv-folder-picker'));
     addWandMenuButtons();
     bindEvents();
 });
