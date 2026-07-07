@@ -1,5 +1,6 @@
 import { getContext, extension_settings } from '../../../extensions.js';
 import { getRequestHeaders, saveSettingsDebounced } from '../../../../script.js';
+import { MEDIA_REQUEST_TYPE } from '../../../constants.js';
 
 let originalImages = [];
 let currentImages = [];
@@ -7,6 +8,8 @@ let selectedImages = new Set();
 let favoriteImages = new Set();
 let isSelectMode = false;
 let currentPage = 1, itemsPerPage = 8, currentLightboxIndex = 0;
+let currentFolder = null;
+let allFoldersCache = null;
 
 function safeSaveSettings() {
     if (extension_settings) extension_settings.advGalleryFavs = [...favoriteImages];
@@ -19,17 +22,22 @@ const template = `
     <button id="adv-btn-close" title="닫기"><i class="fa-solid fa-xmark"></i></button>
 
     <div id="adv-gallery-controls">
-        <div style="font-weight:bold; color:var(--SmartThemeBodyColor); padding:5px 10px; background:rgba(255,255,255,0.05); border-radius:5px; white-space:nowrap;">
-            🖼  <span id="adv-gallery-meta" style="color:#999; font-weight:normal; font-size:12px;">(0장, 0MB)</span>
+        <div id="adv-btn-folder-picker" style="position:relative; font-weight:bold; color:var(--SmartThemeBodyColor); padding:5px 10px; background:rgba(255,255,255,0.05); border-radius:5px; white-space:nowrap; cursor:pointer;">
+            🖼 <span id="adv-gallery-folder-name"></span> <span id="adv-gallery-meta" style="color:#999; font-weight:normal; font-size:10px;">(0장, 0MB)</span>
+
+            <div id="adv-folder-picker" style="display:none;">
+                <input type="text" id="adv-folder-search" placeholder="캐릭터 검색..." onclick="event.stopPropagation()">
+                <div id="adv-folder-list"></div>
+            </div>
         </div>
 
         <select class="adv-ctrl-item" id="adv-sort-select" title="정렬">
-            <option value="newest">🕒 최신순</option>
-            <option value="oldest">⏳ 오래된순</option>
+            <option value="newest">최신순</option>
+            <option value="oldest">오래된순</option>
         </select>
 
         <select class="adv-ctrl-item" id="adv-grid-select" title="화면 표시 장수">
-            <option value="4">🔲 4장 보기</option><option value="8" selected>🔲 8장 보기</option><option value="20">🔲 20장 보기</option>
+            <option value="4">4장</option><option value="8" selected>8장</option><option value="20">20장</option>
         </select>
 
         <div style="margin-left:auto; display:flex; gap:8px;">
@@ -72,7 +80,8 @@ function addWandMenuButtons() {
 
                 btn.addEventListener('click', function () {
                     document.getElementById('adv-gallery-popup').style.display = 'flex';
-                    loadCurrentChatImages();
+                    currentFolder = null;
+                    loadCharacterFolderImages();
                     document.getElementById('extensionsMenuButton')?.click();
                 });
                 menu.appendChild(btn);
@@ -113,60 +122,152 @@ async function updateGalleryMeta(images) {
     }
 }
 
-function loadCurrentChatImages() {
+async function fetchFolderList() {
+    if (allFoldersCache) return allFoldersCache;
+    try {
+        const res = await fetch('/api/images/folders', {
+            method: 'POST',
+            headers: getRequestHeaders({ omitContentType: true }),
+        });
+        if (!res.ok) return [];
+        allFoldersCache = await res.json();
+        return allFoldersCache;
+    } catch (e) {
+        console.error('폴더 목록 조회 실패:', e);
+        return [];
+    }
+}
+
+function renderFolderList(filtered) {
+    const listEl = document.getElementById('adv-folder-list');
+    listEl.innerHTML = '';
+
+    const homeItem = document.createElement('div');
+    homeItem.className = 'adv-folder-item';
+    homeItem.innerHTML = '🏠 현재 캐릭터로';
+    homeItem.onclick = () => {
+        currentFolder = null;
+        document.getElementById('adv-folder-picker').style.display = 'none';
+        loadCharacterFolderImages();
+    };
+    listEl.appendChild(homeItem);
+
+    if (filtered.length === 0) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'padding:8px; opacity:0.6; font-size:12px;';
+        empty.textContent = '검색 결과 없음';
+        listEl.appendChild(empty);
+        return;
+    }
+
+    filtered.forEach(folder => {
+        const item = document.createElement('div');
+        item.className = 'adv-folder-item';
+        item.textContent = folder;
+        item.onclick = () => {
+            currentFolder = folder;
+            document.getElementById('adv-folder-picker').style.display = 'none';
+            loadCharacterFolderImages();
+        };
+        listEl.appendChild(item);
+    });
+}
+
+async function toggleFolderPicker() {
+    const picker = document.getElementById('adv-folder-picker');
+    const isOpen = picker.style.display === 'block';
+    if (isOpen) {
+        picker.style.display = 'none';
+        return;
+    }
+
+    picker.style.display = 'block';
+    const listEl = document.getElementById('adv-folder-list');
+    listEl.innerHTML = '<div style="padding:8px; opacity:0.6; font-size:12px;">불러오는 중...</div>';
+
+    const folders = await fetchFolderList();
+    renderFolderList(folders);
+
+    const searchInput = document.getElementById('adv-folder-search');
+    searchInput.value = '';
+    searchInput.oninput = (e) => {
+        const term = e.target.value.toLowerCase();
+        renderFolderList(folders.filter(f => f.toLowerCase().includes(term)));
+    };
+}
+
+async function loadCharacterFolderImages() {
     const container = document.getElementById('adv-gallery-container');
     const context = getContext();
 
-    if (!context.chat || context.chat.length === 0) {
+    let folder = currentFolder;
+
+    if (!folder) {
+        if (context.groupId) {
+            originalImages = [];
+            currentImages = [];
+            container.innerHTML = '<p style="text-align:center; padding-top:40px; color:#aaa; grid-column:1/-1;">그룹 채팅에서는 아직 지원되지 않습니다. 🖼 버튼으로 캐릭터를 직접 선택해주세요.</p>';
+            updateGalleryMeta(originalImages);
+            return;
+        }
+        folder = context.name2;
+    }
+
+    if (!folder) {
         originalImages = [];
         currentImages = [];
-        container.innerHTML = '<p style="text-align:center; padding-top:40px; color:#aaa; grid-column:1/-1;">현재 채팅에 이미지가 없습니다.</p>';
+        container.innerHTML = '<p style="text-align:center; padding-top:40px; color:#aaa; grid-column:1/-1;">캐릭터를 먼저 선택해주세요.</p>';
         updateGalleryMeta(originalImages);
         return;
     }
 
-    let foundImages = new Set();
-    const imgRegex = /<img[^>]+src=["']([^"']+)["']/gi;
+    const folderNameEl = document.getElementById('adv-gallery-folder-name');
+    if (folderNameEl) folderNameEl.textContent = folder;
 
-    context.chat.forEach(msg => {
-        if (msg.extra && msg.extra.image) {
-            foundImages.add(msg.extra.image);
-        }
-        if (msg.mes) {
-            let match;
-            while ((match = imgRegex.exec(msg.mes)) !== null) {
-                if (!match[1].startsWith('data:')) {
-                    foundImages.add(match[1]);
-                }
-            }
-        }
-    });
-
-    originalImages = Array.from(foundImages);
-    updateGalleryMeta(originalImages);
-
-    if (originalImages.length === 0) {
-        container.innerHTML = '<p style="text-align:center; padding-top:40px; color:#aaa; grid-column:1/-1;">현재 채팅에 갤러리에 표시될 이미지가 없습니다.</p>';
-        return;
-    }
-
-    applySortAndRender();
-}
-
-function applySortAndRender() {
     const sortType = document.getElementById('adv-sort-select').value;
+    const sortOrder = sortType === 'oldest' ? 'asc' : 'desc';
 
-    currentImages = [...originalImages];
+    try {
+        const response = await fetch('/api/images/list', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify({
+                folder: folder,
+                sortField: 'date',
+                sortOrder: sortOrder,
+                type: MEDIA_REQUEST_TYPE.IMAGE,
+            }),
+        });
 
-    if (sortType === 'newest') {
-        currentImages.reverse();
+        if (!response.ok) {
+            const errText = await response.text();
+            console.error('이미지 목록 조회 실패:', response.status, errText);
+            container.innerHTML = '<p style="text-align:center; padding-top:40px; color:#aaa; grid-column:1/-1;">이미지 목록을 불러오지 못했습니다. (콘솔 확인)</p>';
+            originalImages = [];
+            currentImages = [];
+            updateGalleryMeta(originalImages);
+            return;
+        }
+
+        const files = await response.json();
+        originalImages = files.map(file => `user/images/${folder}/${file}`);
+        currentImages = [...originalImages];
+        updateGalleryMeta(originalImages);
+
+        currentPage = 1;
+        selectedImages.clear();
+        document.getElementById('adv-sel-count').innerText = '0';
+
+        if (originalImages.length === 0) {
+            container.innerHTML = '<p style="text-align:center; padding-top:40px; color:#aaa; grid-column:1/-1;">이 캐릭터 폴더에 이미지가 없습니다.</p>';
+            return;
+        }
+
+        renderGrid();
+    } catch (e) {
+        console.error('이미지 목록 조회 에러:', e);
+        container.innerHTML = '<p style="text-align:center; padding-top:40px; color:#aaa; grid-column:1/-1;">이미지 목록을 불러오는 중 오류가 발생했습니다.</p>';
     }
-
-    currentPage = 1;
-    selectedImages.clear();
-    document.getElementById('adv-sel-count').innerText = '0';
-
-    renderGrid();
 }
 
 function renderGrid() {
@@ -207,6 +308,12 @@ function renderGrid() {
 
         const img = document.createElement('img');
         img.src = src;
+        img.onerror = () => {
+            originalImages = originalImages.filter(i => i !== src);
+            currentImages = currentImages.filter(i => i !== src);
+            card.remove();
+            updateGalleryMeta(originalImages);
+        };
 
         card.appendChild(favBtn);
         card.appendChild(img);
@@ -231,6 +338,11 @@ function renderGrid() {
 }
 
 function bindEvents() {
+    document.getElementById('adv-btn-folder-picker').addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleFolderPicker();
+    });
+
     document.getElementById('adv-btn-close').onclick = () => {
         document.getElementById('adv-gallery-popup').style.display = 'none';
         isSelectMode = false;
@@ -239,7 +351,7 @@ function bindEvents() {
     };
 
     document.getElementById('adv-sort-select').onchange = () => {
-        if (originalImages.length > 0) applySortAndRender();
+        loadCharacterFolderImages();
     };
 
     document.getElementById('adv-grid-select').onchange = (e) => { itemsPerPage = parseInt(e.target.value); renderGrid(); };
@@ -284,6 +396,26 @@ function bindEvents() {
     document.getElementById('adv-nav-left').onclick = (e) => { e.stopPropagation(); navLightbox(-1); };
     document.getElementById('adv-nav-right').onclick = (e) => { e.stopPropagation(); navLightbox(1); };
     document.getElementById('adv-lightbox').onclick = (e) => { if (e.target.id === 'adv-lightbox') e.target.style.display = 'none'; };
+
+    document.addEventListener('mousedown', (e) => {
+        const picker = document.getElementById('adv-folder-picker');
+        const pickerBtn = document.getElementById('adv-btn-folder-picker');
+        if (picker.style.display === 'block' && !pickerBtn.contains(e.target)) {
+            picker.style.display = 'none';
+        }
+    });
+
+    document.addEventListener('mousedown', (e) => {
+        const popup = document.getElementById('adv-gallery-popup');
+        const menuBtn = document.getElementById('adv-gallery-menu-btn');
+        if (
+            popup.style.display === 'flex' &&
+            !popup.contains(e.target) &&
+            !(menuBtn && menuBtn.contains(e.target))
+        ) {
+            document.getElementById('adv-btn-close').click();
+        }
+    });
 }
 
 function navLightbox(dir) {
