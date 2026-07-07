@@ -22,6 +22,10 @@ const template = `
 <div id="adv-gallery-popup">
     <button id="adv-btn-close" title="닫기"><i class="fa-solid fa-xmark"></i></button>
 
+    <div id="adv-gallery-titlebar" title="드래그해서 창 이동 (더블클릭: 위치 초기화)">
+        <i class="fa-solid fa-up-down-left-right"></i> <span>이미지 갤러리</span>
+    </div>
+
     <div id="adv-gallery-controls">
         <div id="adv-btn-folder-picker" style="position:relative; font-weight:bold; color:var(--SmartThemeBodyColor); padding:5px 10px; background:rgba(255,255,255,0.05); border-radius:5px; cursor:pointer;">
             <span class="adv-folder-label">🖼 <span id="adv-gallery-folder-name"></span> <span id="adv-gallery-meta" style="color:#999; font-weight:normal; font-size:10px;">(0장, 0MB)</span> <i class="fa-solid fa-chevron-down" style="font-size:9px; opacity:0.6;"></i></span>
@@ -376,6 +380,128 @@ function renderGrid() {
     });
 }
 
+// ---------------------------------------------------------------------
+// 창 드래그 이동 (PC 전용)
+// ---------------------------------------------------------------------
+const DRAG_POS_STORAGE_KEY = 'advGalleryPos';
+
+function saveGalleryPosition(popup) {
+    try {
+        localStorage.setItem(DRAG_POS_STORAGE_KEY, JSON.stringify({
+            top: popup.style.top,
+            left: popup.style.left,
+        }));
+    } catch (e) {
+        // localStorage 접근 실패 시 무시 (위치 기억 기능만 비활성화됨)
+    }
+}
+
+function restoreGalleryPosition(popup) {
+    try {
+        const raw = localStorage.getItem(DRAG_POS_STORAGE_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        if (saved && saved.top && saved.left) {
+            popup.style.top = saved.top;
+            popup.style.left = saved.left;
+            popup.style.right = 'auto';
+            popup.style.bottom = 'auto';
+        }
+    } catch (e) {
+        // 저장된 위치가 손상된 경우 무시하고 기본 위치 사용
+    }
+}
+
+function resetGalleryPosition(popup) {
+    popup.style.top = '';
+    popup.style.left = '';
+    popup.style.right = '';
+    popup.style.bottom = '';
+    try {
+        localStorage.removeItem(DRAG_POS_STORAGE_KEY);
+    } catch (e) { /* ignore */ }
+}
+
+function clampGalleryPosition(popup) {
+    const minVisible = 60;
+    const rect = popup.getBoundingClientRect();
+    const maxLeft = window.innerWidth - minVisible;
+    const maxTop = window.innerHeight - 30;
+
+    let left = Math.min(rect.left, maxLeft);
+    let top = Math.min(rect.top, maxTop);
+    left = Math.max(left, minVisible - rect.width);
+    top = Math.max(top, 0);
+
+    popup.style.left = `${left}px`;
+    popup.style.top = `${top}px`;
+}
+
+function makeGalleryDraggable() {
+    const popup = document.getElementById('adv-gallery-popup');
+    const handle = document.getElementById('adv-gallery-titlebar');
+    if (!popup || !handle) return;
+
+    let isDragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    handle.addEventListener('mousedown', (e) => {
+        // 닫기 버튼 등 내부 컨트롤 클릭 시엔 드래그 시작하지 않음
+        if (e.target.closest('button, input, select, a')) return;
+        if (e.button !== 0) return; // 좌클릭만 허용
+
+        const rect = popup.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+
+        // vw/vh 기반 위치를 px 기반으로 전환 (창 크기와 무관하게 위치 고정)
+        popup.style.left = `${rect.left}px`;
+        popup.style.top = `${rect.top}px`;
+        popup.style.right = 'auto';
+        popup.style.bottom = 'auto';
+
+        isDragging = true;
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+
+        const minVisible = 60; // 화면 밖으로 완전히 사라지지 않도록 최소 여백 확보
+        const maxLeft = window.innerWidth - minVisible;
+        const maxTop = window.innerHeight - 30;
+
+        let newLeft = e.clientX - offsetX;
+        let newTop = e.clientY - offsetY;
+
+        newLeft = Math.min(Math.max(newLeft, minVisible - popup.offsetWidth), maxLeft);
+        newTop = Math.min(Math.max(newTop, 0), maxTop);
+
+        popup.style.left = `${newLeft}px`;
+        popup.style.top = `${newTop}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        document.body.style.userSelect = '';
+        saveGalleryPosition(popup);
+    });
+
+    handle.addEventListener('dblclick', (e) => {
+        if (e.target.closest('button, input, select, a')) return;
+        resetGalleryPosition(popup);
+    });
+
+    // 브라우저 창 크기가 줄어들어 갤러리가 화면 밖으로 나가는 것을 방지
+    window.addEventListener('resize', () => {
+        if (popup.style.display === 'none' || !popup.style.left) return;
+        clampGalleryPosition(popup);
+    });
+}
+
 function bindEvents() {
     document.getElementById('adv-btn-folder-picker').addEventListener('click', (e) => {
         e.stopPropagation();
@@ -579,4 +705,8 @@ jQuery(function () {
     document.body.appendChild(document.getElementById('adv-folder-picker'));
     addWandMenuButtons();
     bindEvents();
+
+    const popup = document.getElementById('adv-gallery-popup');
+    restoreGalleryPosition(popup);
+    makeGalleryDraggable();
 });
