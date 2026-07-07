@@ -20,7 +20,7 @@ const template = `
 
     <div id="adv-gallery-controls">
         <div style="font-weight:bold; color:var(--SmartThemeBodyColor); padding:5px 10px; background:rgba(255,255,255,0.05); border-radius:5px; white-space:nowrap;">
-            🖼 <span id="adv-gallery-meta" style="color:#999; font-weight:normal; font-size:12px;">(0장, 0MB)</span>
+            🖼  <span id="adv-gallery-meta" style="color:#999; font-weight:normal; font-size:12px;">(0장, 0MB)</span>
         </div>
 
         <select class="adv-ctrl-item" id="adv-sort-select" title="정렬">
@@ -307,7 +307,7 @@ async function deleteTargetImages(targetArray) {
             const res = await fetch('/api/images/delete', {
                 method: 'POST',
                 headers: headers,
-                body: JSON.stringify({ url: src })
+                body: JSON.stringify({ path: src })
             });
             if (!res.ok) {
                 const errText = await res.text();
