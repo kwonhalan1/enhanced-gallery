@@ -194,7 +194,7 @@ select.adv-ctrl-item {
     padding: 16px;
     display: grid;
     gap: 14px;
-    grid-template-columns: repeat(var(--columns, 4), 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(var(--tile-min, 140px), 1fr));
     align-content: start;
 }
 
@@ -354,6 +354,6 @@ select.adv-ctrl-item {
         width: 96vw; height: 96vh;
         resize: none;
     }
-    #adv-gallery-container { grid-template-columns: repeat(2, 1fr) !important; gap: 8px; padding: 10px; }
+    #adv-gallery-container { gap: 8px; padding: 10px; }
     .adv-ctrl-item { font-size: 12px; padding: 0 8px; }
 }
