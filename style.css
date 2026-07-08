@@ -47,35 +47,9 @@
     border-color: rgba(255, 92, 92, 0.8);
 }
 
-#adv-gallery-titlebar {
-    flex-shrink: 0;
-    height: 32px;
-    padding: 0 56px 0 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    font-weight: bold;
-    letter-spacing: 0.2px;
-    color: var(--SmartThemeBodyColor, #e8e8e8);
-    background: rgba(0, 0, 0, 0.18);
-    border-bottom: 1px solid var(--SmartThemeBorderColor, #3a3a3a);
-    cursor: grab;
-    user-select: none;
-}
-
-#adv-gallery-titlebar:active {
-    cursor: grabbing;
-}
-
-#adv-gallery-titlebar i {
-    opacity: 0.55;
-    font-size: 11px;
-}
-
 #adv-gallery-controls {
     flex-shrink: 0;
-    padding: 10px 14px;
+    padding: 10px 56px 10px 14px;
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
@@ -380,8 +354,27 @@ select.adv-ctrl-item {
         width: 96vw; height: 96vh;
         resize: none;
     }
-    /* 모바일에서는 드래그 이동을 지원하지 않으므로 타이틀바를 숨겨 공간 절약 */
-    #adv-gallery-titlebar { display: none; }
     #adv-gallery-container { gap: 8px; padding: 10px; }
     .adv-ctrl-item { font-size: 12px; padding: 0 8px; }
+    #adv-gallery-controls { padding-right: 14px; }
+
+    #adv-btn-close {
+        position: static;
+        margin: 8px 8px 0 auto;
+    }
+}
+
+@media screen and (max-width: 420px) {
+    #adv-gallery-controls {
+        flex-wrap: wrap;
+        overflow-x: visible;
+        padding-right: 44px;
+        row-gap: 6px;
+    }
+    #adv-btn-close {
+        top: 6px;
+        right: 6px;
+        width: 28px;
+        height: 28px;
+    }
 }
