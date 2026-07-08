@@ -697,6 +697,8 @@ jQuery(function () {
     bindEvents();
 
     const popup = document.getElementById('adv-gallery-popup');
-    restoreGalleryPosition(popup);
-    makeGalleryDraggable();
+    if (window.innerWidth > 768) {
+        restoreGalleryPosition(popup);
+        makeGalleryDraggable();
+    }
 });
