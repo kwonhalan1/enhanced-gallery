@@ -61,6 +61,7 @@
     overflow-x: auto;
     border-bottom: 1px solid var(--SmartThemeBorderColor, #3a3a3a);
     background: rgba(0, 0, 0, 0.12);
+    cursor: move;
 }
 
 #adv-gallery-controls::-webkit-scrollbar { height: 4px; }
